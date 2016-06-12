@@ -811,7 +811,7 @@ $(document).ready(function() {
 	drawstyle = "rounded";
     });
 
-    $('#solve').click(function() {
+    var solve_action = function() {
         $('[id^="grid"] > div').each(function(){ $(this).removeClass('border-flash'); });
         var solver_button = this;
         var board = get_board();
@@ -831,7 +831,7 @@ $(document).ready(function() {
         }, function(solutions) {
             $('.loading-throbber').fadeToggle();
             var html_array = [];
-	    global_unsimplified = solutions;
+            global_unsimplified = solutions;
             solutions = simplify_solutions(solutions);
             global_solutions = solutions;
             solutions.forEach(function(solution) {
@@ -841,7 +841,9 @@ $(document).ready(function() {
             solver_button.disabled = false;
             $('#status').addClass('active');
         });
-    });
+    }
+
+    $('#solve').click(solve_action);
 
     $('#pathincrease').click(function() {
         $('[id^="grid"] > div').each(function(){ $(this).removeClass('border-flash'); });
@@ -869,6 +871,46 @@ $(document).ready(function() {
             $('#solutions > ol').html(html_array.join(''));
             $('#status').addClass('active');
         });
+    });
+
+    $('#fetch_board').click(function() {
+        $.getJSON(
+            "http://192.168.1.11:2345/get_board",
+            function(data) {
+                console.log(data);
+                $('[id^="grid"] > div').each(function(i, div) {
+                    var x = parseInt(div.id.split('')[2]);
+                    var y = parseInt(div.id.split('')[1]);
+                    var item = data[y][x];
+                    show_element_type($(div), item);
+                }.bind(this));
+                var board = get_board();
+                solve_action();
+            }
+        ).always(function(data) { console.log(data); });
+    });
+
+    $('#execute_solution').click(function() {
+        var solution = global_solutions[global_index];
+        $.ajax({
+            method: "POST",
+            url: "http://192.168.1.11:2345/solve",
+            data: JSON.stringify(format_solution(solution))
+        }).done(function(msg) {
+            console.log(msg);
+        });
+    });
+
+    $('#start_bot').click(function() {
+        $.getJSON(
+            "http://192.168.1.11:2345/start"
+        ).always(function(data) { console.log(data); });
+    });
+
+    $('#stop_bot').click(function() {
+        $.getJSON(
+            "http://192.168.1.11:2345/stop"
+        ).always(function(data) { console.log(data); });
     });
 
     $('#solutions').on('click', 'li', function(e) {
@@ -1065,4 +1107,17 @@ function avoid_overlap(xys) {
         }
     }
     return xys;
+}
+
+function format_solution(solution) {
+    var rc = JSON.parse(JSON.stringify(solution.init_cursor));
+    var start = [rc.col, rc.row];
+    var path = [start];
+    solution.path.map(function(dir, i, dirs) {
+      in_place_move_rc(rc, dir);
+      if (i == dirs.length - 1 || dir != dirs[i + 1]) {
+          path = path.concat([[rc.col, rc.row]]);
+      }
+    });
+    return path;
 }
